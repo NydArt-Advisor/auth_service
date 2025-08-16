@@ -12,6 +12,7 @@ router.post('/refresh-token', authLimiter, authController.refreshToken);
 router.post('/logout', isAuthenticated, authController.logout);
 router.post('/forgot-password', passwordResetLimiter, authController.forgotPassword);
 router.post('/reset-password', passwordResetLimiter, authController.resetPassword);
+router.post('/change-password', isAuthenticated, authController.changePassword);
 router.get('/me', isAuthenticated, authController.getCurrentUser);
 
 // Google OAuth routes
@@ -37,8 +38,9 @@ router.get('/google/callback',
             
             if (userCreatedRecently) {
                 try {
-                    const loginLink = `${process.env.CLIENT_URL || 'http://localhost:3000'}/login`;
-                    const response = await fetch('http://localhost:4003/welcome', {
+                    const loginLink = `${process.env.CLIENT_URL}/login`;
+                    const notificationServiceUrl = process.env.NOTIFICATION_SERVICE_URL;
+                    const response = await fetch(`${notificationServiceUrl}/welcome`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
@@ -81,5 +83,8 @@ router.get('/health', (req, res) => {
 
 // Update user's current plan
 router.patch('/users/:userId/plan', authController.updateUserPlan);
+
+// Update user profile
+router.patch('/profile', isAuthenticated, authController.updateProfile);
 
 module.exports = router; 
