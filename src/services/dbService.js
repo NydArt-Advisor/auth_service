@@ -1,7 +1,24 @@
 const axios = require('axios');
 require('dotenv').config();
 
+// Validate and set database service URL
 const DB_SERVICE_URL = process.env.DB_SERVICE_URL;
+
+if (!DB_SERVICE_URL) {
+    console.error('❌ DB_SERVICE_URL environment variable is not set!');
+    console.error('Please set DB_SERVICE_URL in your environment variables.');
+    process.exit(1);
+}
+
+// Validate URL format
+try {
+    new URL(DB_SERVICE_URL);
+    console.log('✅ Database service URL configured:', DB_SERVICE_URL);
+} catch (error) {
+    console.error('❌ Invalid DB_SERVICE_URL format:', DB_SERVICE_URL);
+    console.error('URL must be a valid HTTP/HTTPS URL (e.g., https://db-service.onrender.com)');
+    process.exit(1);
+}
 
 // Configure axios with timeout and retry logic
 const axiosInstance = axios.create({

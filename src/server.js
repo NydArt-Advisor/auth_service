@@ -13,6 +13,9 @@ promClient.collectDefaultMetrics({ register });
 
 const app = express();
 
+// Trust proxy configuration for rate limiting behind load balancers/proxies
+app.set('trust proxy', 1);
+
 // Apply general rate limiting to all routes
 app.use(generalLimiter);
 
@@ -31,13 +34,34 @@ app.use(cors({
             process.env.AI_SERVICE_URL,
             process.env.NOTIFICATION_SERVICE_URL,
             process.env.METRICS_SERVICE_URL,
+            // Add both Vercel domains
+            'https://nydartadvisor-p3gw0m3og-darylnyds-projects.vercel.app',
+            'https://nydartadvisor.vercel.app',
+            'https://nydartadvisor-git-main-darylnyds-projects.vercel.app',
+            // Add any other Vercel preview domains
+            /^https:\/\/nydartadvisor.*\.vercel\.app$/,
         ];
         
-        if (allowedOrigins.indexOf(origin) !== -1) {
+        // Check if origin matches any allowed origins
+        const isAllowed = allowedOrigins.some(allowedOrigin => {
+            if (typeof allowedOrigin === 'string') {
+                return origin === allowedOrigin;
+            } else if (allowedOrigin instanceof RegExp) {
+                return allowedOrigin.test(origin);
+            }
+            return false;
+        });
+        
+        if (isAllowed) {
             callback(null, true);
         } else {
             console.log('CORS blocked origin:', origin);
-            callback(null, true); // Allow all origins for now
+            // For development, allow all origins
+            if (process.env.NODE_ENV === 'development') {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
         }
     },
     credentials: true,
