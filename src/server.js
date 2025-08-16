@@ -23,10 +23,14 @@ app.use(cors({
         if (!origin) return callback(null, true);
         
         const allowedOrigins = [
-            'http://localhost:3000',
-            'http://127.0.0.1:3000',
-            'http://localhost:3001',
-            'http://127.0.0.1:3001'
+            process.env.CLIENT_URL,
+            process.env.FRONTEND_URL,
+            process.env.AUTH_SERVICE_URL,
+            process.env.DATABASE_SERVICE_URL,
+            process.env.PAYMENT_SERVICE_URL,
+            process.env.AI_SERVICE_URL,
+            process.env.NOTIFICATION_SERVICE_URL,
+            process.env.METRICS_SERVICE_URL,
         ];
         
         if (allowedOrigins.indexOf(origin) !== -1) {
