@@ -4,7 +4,7 @@
   "description": "Authentication service for NydArt Advisor",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
+    "start": "node start.js",
     "dev": "nodemon src/server.js",
     "test": "node auth.test.js",
     "test:registration": "node registration.test.js",
