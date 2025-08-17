@@ -22,7 +22,7 @@ try {
 
 // Configure axios with timeout and retry logic
 const axiosInstance = axios.create({
-    baseURL: DB_SERVICE_URL,
+    baseURL: `${DB_SERVICE_URL}/api`, // Add /api prefix to match database service routes
     timeout: 15000, // 15 second timeout (increased for spin-down delays)
     headers: {
         'Content-Type': 'application/json'
@@ -49,6 +49,9 @@ const retryRequest = async (requestFn, maxRetries = 3, delay = 2000) => {
             }
             
             // If it's the last attempt or not a retryable error, throw the error
+            if (is502Error && attempt === maxRetries) {
+                console.log(`❌ All ${maxRetries} retry attempts failed for 502 error`);
+            }
             throw error;
         }
     }
@@ -72,13 +75,16 @@ axiosInstance.interceptors.response.use(
         return response;
     },
     (error) => {
-        console.error('DB Service Response Error:', {
-            status: error.response?.status,
-            statusText: error.response?.statusText,
-            url: error.config?.url,
-            method: error.config?.method,
-            message: error.message
-        });
+        // Don't log 502 errors here as they'll be handled by retry logic
+        if (error.response?.status !== 502) {
+            console.error('DB Service Response Error:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                url: error.config?.url,
+                method: error.config?.method,
+                message: error.message
+            });
+        }
         return Promise.reject(error);
     }
 );
