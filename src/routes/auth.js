@@ -23,13 +23,17 @@ router.get('/google',
 router.get('/google/callback',
     passport.authenticate('google', { session: false }),
     async (req, res) => {
+        console.log('Google OAuth callback received');
+        console.log('User data:', req.user ? 'Present' : 'Missing');
+        
         if (!req.user) {
             console.error('Google OAuth authentication failed - no user data');
             return res.redirect(`${process.env.CLIENT_URL}/auth-success?error=authentication_failed`);
         }
         
         try {
-        const token = authController.generateToken(req.user);
+            console.log('Generating token for user:', req.user.email);
+            const token = authController.generateToken(req.user);
             
             // Send welcome email for new users (check if user was recently created)
             // We'll check if the user was created within the last few seconds
@@ -66,6 +70,11 @@ router.get('/google/callback',
             res.redirect(`${process.env.CLIENT_URL}/auth-success?token=${encodeURIComponent(token)}`);
         } catch (error) {
             console.error('Error generating token for Google OAuth:', error);
+            console.error('Error details:', {
+                message: error.message,
+                stack: error.stack,
+                user: req.user ? { id: req.user._id, email: req.user.email } : 'No user data'
+            });
             res.redirect(`${process.env.CLIENT_URL}/auth-success?error=token_generation_failed`);
         }
     }

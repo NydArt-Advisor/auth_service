@@ -6,9 +6,16 @@
   "scripts": {
     "start": "node start.js",
     "dev": "nodemon src/server.js",
-    "test": "node auth.test.js",
-    "test:registration": "node registration.test.js",
-    "test:all": "npm run test && npm run test:registration"
+    "test": "node src/test/simple-test.js",
+    "test:full": "node src/test/run-tests.js",
+    "test:unit": "node src/test/run-tests.js --unit",
+    "test:integration": "node src/test/run-tests.js --integration",
+    "test:performance": "node src/test/run-tests.js --performance",
+    "test:coverage": "node src/test/run-tests.js --coverage",
+    "test:watch": "node src/test/run-tests.js --watch",
+    "test:file": "node src/test/run-tests.js --file",
+    "test:legacy": "node auth.test.js",
+    "test:registration": "node registration.test.js"
   },
   "keywords": [
     "authentication",
@@ -39,6 +46,11 @@
     "speakeasy": "^2.0.0"
   },
   "devDependencies": {
-    "nodemon": "^2.0.22"
+    "nodemon": "^2.0.22",
+    "mocha": "^10.2.0",
+    "chai": "^4.3.7",
+    "sinon": "^15.1.0",
+    "supertest": "^6.3.3",
+    "nyc": "^15.1.0"
   }
 }

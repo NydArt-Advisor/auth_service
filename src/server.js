@@ -13,6 +13,26 @@ promClient.collectDefaultMetrics({ register });
 
 const app = express();
 
+// Critical environment variables check
+const criticalEnvVars = [
+    'JWT_SECRET',
+    'GOOGLE_CLIENT_ID', 
+    'GOOGLE_CLIENT_SECRET',
+    'CLIENT_URL',
+    'DB_SERVICE_URL'
+];
+
+const missingVars = criticalEnvVars.filter(varName => !process.env[varName]);
+
+if (missingVars.length > 0) {
+    console.error('❌ Critical environment variables missing:', missingVars);
+    console.error('Please check your .env file and ensure all required variables are set.');
+    console.error('See ENVIRONMENT_SETUP.md for setup instructions.');
+    process.exit(1);
+} else {
+    console.log('✅ All critical environment variables are set');
+}
+
 // Trust proxy configuration for rate limiting behind load balancers/proxies
 app.set('trust proxy', 1);
 
@@ -185,14 +205,20 @@ process.on('uncaughtException', (error) => {
     process.exit(1);
 });
 
-const PORT = process.env.PORT || 5002;
+// Export app for testing
+module.exports = app;
 
-try {
-    app.listen(PORT, () => {
-        console.log(`Authentication service running on port ${PORT}`);
-        console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    });
-} catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
+// Only start the server if this file is run directly
+if (require.main === module) {
+    const PORT = process.env.PORT || 5002;
+
+    try {
+        app.listen(PORT, () => {
+            console.log(`Authentication service running on port ${PORT}`);
+            console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+        });
+    } catch (error) {
+        console.error('Failed to start server:', error);
+        process.exit(1);
+    }
 } 
