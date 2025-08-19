@@ -185,8 +185,23 @@ process.on('uncaughtException', (error) => {
     process.exit(1);
 });
 
-const PORT = process.env.PORT || 5002;
+// Export app for testing
+module.exports = app;
 
+// Only start the server if this file is run directly
+if (require.main === module) {
+    const PORT = process.env.PORT || 5002;
+
+    try {
+        app.listen(PORT, () => {
+            console.log(`Authentication service running on port ${PORT}`);
+            console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+        });
+    } catch (error) {
+        console.error('Failed to start server:', error);
+        process.exit(1);
+    }
+} 
 try {
     app.listen(PORT, () => {
         console.log(`Authentication service running on port ${PORT}`);
