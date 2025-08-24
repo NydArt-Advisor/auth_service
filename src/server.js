@@ -6,11 +6,35 @@ const session = require('express-session');
 const { passport } = require('./middleware/auth');
 const { generalLimiter } = require('./middleware/rateLimit');
 const authRoutes = require('./routes/auth');
+const twoFactorRoutes = require('./routes/twoFactorRoutes');
 const promClient = require('prom-client');
 const register = promClient.register;
 promClient.collectDefaultMetrics({ register });
 
 const app = express();
+
+// Critical environment variables check
+const criticalEnvVars = [
+    'JWT_SECRET',
+    'GOOGLE_CLIENT_ID', 
+    'GOOGLE_CLIENT_SECRET',
+    'CLIENT_URL',
+    'DB_SERVICE_URL'
+];
+
+const missingVars = criticalEnvVars.filter(varName => !process.env[varName]);
+
+if (missingVars.length > 0) {
+    console.error('❌ Critical environment variables missing:', missingVars);
+    console.error('Please check your .env file and ensure all required variables are set.');
+    console.error('See ENVIRONMENT_SETUP.md for setup instructions.');
+    process.exit(1);
+} else {
+    console.log('✅ All critical environment variables are set');
+}
+
+// Trust proxy configuration for rate limiting behind load balancers/proxies
+app.set('trust proxy', 1);
 
 // Apply general rate limiting to all routes
 app.use(generalLimiter);
@@ -22,17 +46,42 @@ app.use(cors({
         if (!origin) return callback(null, true);
         
         const allowedOrigins = [
-            'http://localhost:3000',
-            'http://127.0.0.1:3000',
-            'http://localhost:3001',
-            'http://127.0.0.1:3001'
+            process.env.CLIENT_URL,
+            process.env.FRONTEND_URL,
+            process.env.AUTH_SERVICE_URL,
+            process.env.DATABASE_SERVICE_URL,
+            process.env.PAYMENT_SERVICE_URL,
+            process.env.AI_SERVICE_URL,
+            process.env.NOTIFICATION_SERVICE_URL,
+            process.env.METRICS_SERVICE_URL,
+            // Add both Vercel domains
+            'https://nydartadvisor-p3gw0m3og-darylnyds-projects.vercel.app',
+            'https://nydartadvisor.vercel.app',
+            'https://nydartadvisor-git-main-darylnyds-projects.vercel.app',
+            // Add any other Vercel preview domains
+            /^https:\/\/nydartadvisor.*\.vercel\.app$/,
         ];
         
-        if (allowedOrigins.indexOf(origin) !== -1) {
+        // Check if origin matches any allowed origins
+        const isAllowed = allowedOrigins.some(allowedOrigin => {
+            if (typeof allowedOrigin === 'string') {
+                return origin === allowedOrigin;
+            } else if (allowedOrigin instanceof RegExp) {
+                return allowedOrigin.test(origin);
+            }
+            return false;
+        });
+        
+        if (isAllowed) {
             callback(null, true);
         } else {
             console.log('CORS blocked origin:', origin);
-            callback(null, true); // Allow all origins for now
+            // For development, allow all origins
+            if (process.env.NODE_ENV === 'development') {
+                callback(null, true);
+            } else {
+                callback(new Error('Not allowed by CORS'));
+            }
         }
     },
     credentials: true,
@@ -88,8 +137,13 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+app.get("/", (req, res) => {
+  res.send("Authentication Service is running");
+});
+
 // Routes
 app.use('/auth', authRoutes);
+app.use('/two-factor', twoFactorRoutes);
 
 // Health check route
 app.get('/health', (req, res) => {
@@ -151,14 +205,20 @@ process.on('uncaughtException', (error) => {
     process.exit(1);
 });
 
-const PORT = process.env.PORT || 5002;
+// Export app for testing
+module.exports = app;
 
-try {
-    app.listen(PORT, () => {
-        console.log(`Authentication service running on port ${PORT}`);
-        console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    });
-} catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
+// Only start the server if this file is run directly
+if (require.main === module) {
+    const PORT = process.env.PORT || 5002;
+
+    try {
+        app.listen(PORT, () => {
+            console.log(`Authentication service running on port ${PORT}`);
+            console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+        });
+    } catch (error) {
+        console.error('Failed to start server:', error);
+        process.exit(1);
+    }
 } 

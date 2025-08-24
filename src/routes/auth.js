@@ -12,6 +12,7 @@ router.post('/refresh-token', authLimiter, authController.refreshToken);
 router.post('/logout', isAuthenticated, authController.logout);
 router.post('/forgot-password', passwordResetLimiter, authController.forgotPassword);
 router.post('/reset-password', passwordResetLimiter, authController.resetPassword);
+router.post('/change-password', isAuthenticated, authController.changePassword);
 router.get('/me', isAuthenticated, authController.getCurrentUser);
 
 // Google OAuth routes
@@ -22,13 +23,17 @@ router.get('/google',
 router.get('/google/callback',
     passport.authenticate('google', { session: false }),
     async (req, res) => {
+        console.log('Google OAuth callback received');
+        console.log('User data:', req.user ? 'Present' : 'Missing');
+        
         if (!req.user) {
             console.error('Google OAuth authentication failed - no user data');
             return res.redirect(`${process.env.CLIENT_URL}/auth-success?error=authentication_failed`);
         }
         
         try {
-        const token = authController.generateToken(req.user);
+            console.log('Generating token for user:', req.user.email);
+            const token = authController.generateToken(req.user);
             
             // Send welcome email for new users (check if user was recently created)
             // We'll check if the user was created within the last few seconds
@@ -37,8 +42,9 @@ router.get('/google/callback',
             
             if (userCreatedRecently) {
                 try {
-                    const loginLink = `${process.env.CLIENT_URL || 'http://localhost:3000'}/login`;
-                    const response = await fetch('http://localhost:4003/welcome', {
+                    const loginLink = `${process.env.CLIENT_URL}/login`;
+                    const notificationServiceUrl = process.env.NOTIFICATION_SERVICE_URL;
+                    const response = await fetch(`${notificationServiceUrl}/welcome`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ 
@@ -64,6 +70,11 @@ router.get('/google/callback',
             res.redirect(`${process.env.CLIENT_URL}/auth-success?token=${encodeURIComponent(token)}`);
         } catch (error) {
             console.error('Error generating token for Google OAuth:', error);
+            console.error('Error details:', {
+                message: error.message,
+                stack: error.stack,
+                user: req.user ? { id: req.user._id, email: req.user.email } : 'No user data'
+            });
             res.redirect(`${process.env.CLIENT_URL}/auth-success?error=token_generation_failed`);
         }
     }
@@ -81,5 +92,8 @@ router.get('/health', (req, res) => {
 
 // Update user's current plan
 router.patch('/users/:userId/plan', authController.updateUserPlan);
+
+// Update user profile
+router.patch('/profile', isAuthenticated, authController.updateProfile);
 
 module.exports = router; 

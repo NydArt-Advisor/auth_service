@@ -31,10 +31,16 @@ passport.use(new JwtStrategy(jwtOptions, async (jwt_payload, done) => {
 
 // Google Strategy (only if credentials are provided)
 if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    // Build the callback URL dynamically
+    const baseUrl = process.env.AUTH_SERVICE_URL || `http://localhost:${process.env.PORT || 5002}`;
+    const callbackURL = `${baseUrl}/auth/google/callback`;
+    
+    console.log('Google OAuth callback URL:', callbackURL);
+    
     passport.use(new GoogleStrategy({
         clientID: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: "/auth/google/callback"
+        callbackURL: callbackURL
     }, async (accessToken, refreshToken, profile, done) => {
         try {
             // Validate profile data

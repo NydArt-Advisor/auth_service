@@ -1,16 +1,61 @@
 const axios = require('axios');
 require('dotenv').config();
 
-const DB_SERVICE_URL = process.env.DB_SERVICE_URL || 'http://localhost:5001/api';
+// Validate and set database service URL
+const DB_SERVICE_URL = process.env.DB_SERVICE_URL;
+
+if (!DB_SERVICE_URL) {
+    console.error('❌ DB_SERVICE_URL environment variable is not set!');
+    console.error('Please set DB_SERVICE_URL in your environment variables.');
+    process.exit(1);
+}
+
+// Validate URL format
+try {
+    new URL(DB_SERVICE_URL);
+    console.log('✅ Database service URL configured:', DB_SERVICE_URL);
+} catch (error) {
+    console.error('❌ Invalid DB_SERVICE_URL format:', DB_SERVICE_URL);
+    console.error('URL must be a valid HTTP/HTTPS URL (e.g., https://db-service.onrender.com)');
+    process.exit(1);
+}
 
 // Configure axios with timeout and retry logic
 const axiosInstance = axios.create({
-    baseURL: DB_SERVICE_URL,
-    timeout: 10000, // 10 second timeout
+    baseURL: `${DB_SERVICE_URL}/api`, // Add /api prefix to match database service routes
+    timeout: 15000, // 15 second timeout (increased for spin-down delays)
     headers: {
         'Content-Type': 'application/json'
     }
 });
+
+// Retry logic for handling free instance spin-down
+const retryRequest = async (requestFn, maxRetries = 3, delay = 2000) => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await requestFn();
+        } catch (error) {
+            // Check if it's a 502 error (likely spin-down issue)
+            const is502Error = error.response?.status === 502;
+            const isTimeoutError = error.code === 'ECONNABORTED' || error.message.includes('timeout');
+            
+            if ((is502Error || isTimeoutError) && attempt < maxRetries) {
+                console.log(`⚠️ Database service request failed (attempt ${attempt}/${maxRetries}) - likely spin-down delay`);
+                console.log(`⏳ Waiting ${delay}ms before retry...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                // Increase delay for next attempt
+                delay *= 1.5;
+                continue;
+            }
+            
+            // If it's the last attempt or not a retryable error, throw the error
+            if (is502Error && attempt === maxRetries) {
+                console.log(`❌ All ${maxRetries} retry attempts failed for 502 error`);
+            }
+            throw error;
+        }
+    }
+};
 
 // Add request interceptor for logging
 axiosInstance.interceptors.request.use(
@@ -30,13 +75,16 @@ axiosInstance.interceptors.response.use(
         return response;
     },
     (error) => {
-        console.error('DB Service Response Error:', {
-            status: error.response?.status,
-            statusText: error.response?.statusText,
-            url: error.config?.url,
-            method: error.config?.method,
-            message: error.message
-        });
+        // Don't log 502 errors here as they'll be handled by retry logic
+        if (error.response?.status !== 502) {
+            console.error('DB Service Response Error:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                url: error.config?.url,
+                method: error.config?.method,
+                message: error.message
+            });
+        }
         return Promise.reject(error);
     }
 );
@@ -44,7 +92,9 @@ axiosInstance.interceptors.response.use(
 class DatabaseService {
     static async createUser(userData) {
         try {
-            const response = await axiosInstance.post('/users', userData);
+            const response = await retryRequest(() => 
+                axiosInstance.post('/users', userData)
+            );
             return response.data;
         } catch (error) {
             console.error('Error creating user:', error);
@@ -61,7 +111,9 @@ class DatabaseService {
     static async findUserById(id) {
         try {
             console.log('Finding user by ID:', id);
-            const response = await axiosInstance.get(`/users/${id}`);
+            const response = await retryRequest(() => 
+                axiosInstance.get(`/users/${id}`)
+            );
             
             if (!response.data) {
                 console.error('No user data returned for ID:', id);
@@ -78,7 +130,9 @@ class DatabaseService {
 
     static async findUserByEmail(email) {
         try {
-            const response = await axiosInstance.get(`/users/email/${email}`);
+            const response = await retryRequest(() => 
+                axiosInstance.get(`/users/email/${email}`)
+            );
             return response.data;
         } catch (error) {
             // If user not found (404), return null instead of throwing error
@@ -118,7 +172,9 @@ class DatabaseService {
 
     static async findUserBySocialId(provider, socialId) {
         try {
-            const response = await axiosInstance.get(`/users/social/${provider}/${socialId}`);
+            const response = await retryRequest(() => 
+                axiosInstance.get(`/users/social/${provider}/${socialId}`)
+            );
             return response.data;
         } catch (error) {
             // If user not found (404), return null instead of throwing error
